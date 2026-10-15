@@ -23,13 +23,14 @@ export default function ChatAssistant({
   activeExam,
   energyLevel,
   onTriggerRecovery,
-  onFocusTask
+  onFocusTask,
+  userName = 'Student'
 }) {
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
       sender: 'bot',
-      text: `Hello Alex! I'm your **FocusMate AI Mentor**. I'm tracking your upcoming **${activeExam?.subject || 'Exams'}** and current **${energyLevel} Energy** state.\n\nHow can I help you sharpen your study trajectory today?`,
+      text: `Hello ${userName}! I'm your **FocusMate AI Mentor**. I'm tracking your upcoming **${activeExam?.subject || 'Exams'}** and current **${energyLevel} Energy** state.\n\nHow can I help you sharpen your study trajectory today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);

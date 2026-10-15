@@ -25,7 +25,8 @@ export default function TaskInbox({
   onDeleteTask,
   onSetActiveTask,
   activeTaskId,
-  onResetSampleTasks
+  onResetSampleTasks,
+  userProfile = null
 }) {
   const [activeCategory, setActiveCategory] = useState('All');
   const [filterExamCritical, setFilterExamCritical] = useState(false);
@@ -45,8 +46,8 @@ export default function TaskInbox({
   const CATEGORIES = [
     { id: 'All', label: 'All Tracks', icon: Tag },
     { id: 'Academics', label: 'Academics', icon: BookOpen, color: 'text-purple-400' },
-    { id: 'Core Coding (Java/DSA)', label: 'Core Coding (Java/DSA)', icon: Code, color: 'text-cyan-400' },
-    { id: 'Courses (PW/Certifications)', label: 'Courses (PW/Certs)', icon: GraduationCap, color: 'text-amber-400' },
+    { id: 'Core Coding (Java/DSA)', label: 'Coding & DSA', icon: Code, color: 'text-cyan-400' },
+    { id: 'Courses & Certifications', label: 'Courses & Certs', icon: GraduationCap, color: 'text-amber-400' },
     { id: 'Personal Goals', label: 'Personal Goals', icon: HeartHandshake, color: 'text-emerald-400' },
   ];
 
@@ -402,9 +403,14 @@ export default function TaskInbox({
                     className="w-full px-3 py-2 text-sm bg-[#121214] border border-[#2E2E38] rounded-xl text-white focus:outline-none focus:border-purple-500"
                   >
                     <option value="Academics">Academics</option>
-                    <option value="Core Coding (Java/DSA)">Core Coding (Java/DSA)</option>
-                    <option value="Courses (PW/Certifications)">Courses (PW/Certifications)</option>
+                    <option value="Core Coding (Java/DSA)">Core Coding & Labs</option>
+                    <option value="Courses & Certifications">Courses & Certifications</option>
                     <option value="Personal Goals">Personal Goals</option>
+                    {userProfile?.subjects?.map((s) => (
+                      <option key={s.id || s.name} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

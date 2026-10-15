@@ -7,21 +7,38 @@ import AdaptiveRecoveryModal from './components/AdaptiveRecoveryModal';
 import ChatAssistant from './components/ChatAssistant';
 import DocumentScannerModal from './components/DocumentScannerModal';
 import SyllabusQuizModal from './components/SyllabusQuizModal';
+import OnboardingModal from './components/OnboardingModal';
 import Toast from './components/Toast';
 
 import { INITIAL_TASKS, INITIAL_EXAMS } from './data/initialData';
-import { getStoredItem, setStoredItem } from './utils/storage';
+import { getStoredItem, setStoredItem, clearAllStorage, STORAGE_KEYS } from './utils/storage';
 import { sounds } from './utils/soundEffects';
 import { CheckSquare, Zap, Timer, BookOpen, MessageSquare } from 'lucide-react';
 
 export default function App() {
-  // State initialization with LocalStorage persistence
+  // User Profile (Triggers Onboarding if empty)
+  const [userProfile, setUserProfile] = useState(() => getStoredItem(STORAGE_KEYS.USER_PROFILE, null));
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !getStoredItem(STORAGE_KEYS.USER_PROFILE, null));
+  const [isEditProfileMode, setIsEditProfileMode] = useState(false);
+
+  // App core state with LocalStorage persistence
   const [activeTab, setActiveTab] = useState('inbox');
-  const [tasks, setTasks] = useState(() => getStoredItem('focusmate_tasks', INITIAL_TASKS));
-  const [exams, setExams] = useState(() => getStoredItem('focusmate_exams', INITIAL_EXAMS));
-  const [activeExamId, setActiveExamId] = useState(() => getStoredItem('focusmate_active_exam', 'exam-1'));
-  const [energyLevel, setEnergyLevel] = useState(() => getStoredItem('focusmate_energy', 'High'));
-  const [activeTaskId, setActiveTaskId] = useState(() => getStoredItem('focusmate_active_task_id', 'task-1'));
+  const [tasks, setTasks] = useState(() => {
+    // If userProfile exists, read stored tasks, otherwise empty array for new users
+    const stored = getStoredItem(STORAGE_KEYS.TASKS, null);
+    if (stored !== null) return stored;
+    return getStoredItem(STORAGE_KEYS.USER_PROFILE, null) ? [] : INITIAL_TASKS;
+  });
+
+  const [exams, setExams] = useState(() => {
+    const stored = getStoredItem(STORAGE_KEYS.EXAMS, null);
+    if (stored !== null) return stored;
+    return getStoredItem(STORAGE_KEYS.USER_PROFILE, null) ? [] : INITIAL_EXAMS;
+  });
+
+  const [activeExamId, setActiveExamId] = useState(() => getStoredItem(STORAGE_KEYS.ACTIVE_EXAM, exams[0]?.id || 'exam-1'));
+  const [energyLevel, setEnergyLevel] = useState(() => getStoredItem(STORAGE_KEYS.ENERGY, 'High'));
+  const [activeTaskId, setActiveTaskId] = useState(() => getStoredItem(STORAGE_KEYS.ACTIVE_TASK_ID, tasks[0]?.id || null));
 
   // Modals & Panels
   const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
@@ -34,23 +51,33 @@ export default function App() {
 
   // Sync state to LocalStorage
   useEffect(() => {
-    setStoredItem('focusmate_tasks', tasks);
+    if (userProfile) {
+      setStoredItem(STORAGE_KEYS.USER_PROFILE, userProfile);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    setStoredItem(STORAGE_KEYS.TASKS, tasks);
   }, [tasks]);
 
   useEffect(() => {
-    setStoredItem('focusmate_exams', exams);
+    setStoredItem(STORAGE_KEYS.EXAMS, exams);
   }, [exams]);
 
   useEffect(() => {
-    setStoredItem('focusmate_active_exam', activeExamId);
+    if (activeExamId) {
+      setStoredItem(STORAGE_KEYS.ACTIVE_EXAM, activeExamId);
+    }
   }, [activeExamId]);
 
   useEffect(() => {
-    setStoredItem('focusmate_energy', energyLevel);
+    setStoredItem(STORAGE_KEYS.ENERGY, energyLevel);
   }, [energyLevel]);
 
   useEffect(() => {
-    setStoredItem('focusmate_active_task_id', activeTaskId);
+    if (activeTaskId) {
+      setStoredItem(STORAGE_KEYS.ACTIVE_TASK_ID, activeTaskId);
+    }
   }, [activeTaskId]);
 
   const addToast = (title, message, type = 'success') => {
@@ -66,12 +93,41 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
+  // Onboarding completion handler
+  const handleCompleteOnboarding = ({ userProfile: newProfile, exams: newExams, tasks: newTasks }) => {
+    setUserProfile(newProfile);
+    setExams(newExams);
+    setTasks(newTasks);
+    if (newExams.length > 0) setActiveExamId(newExams[0].id);
+    if (newTasks.length > 0) setActiveTaskId(newTasks[0].id);
+    setIsOnboardingOpen(false);
+    setIsEditProfileMode(false);
+    addToast(
+      `Welcome, ${newProfile.name}! ✨`,
+      `Configured ${newExams.length} target exams and synchronized ${newTasks.length} adaptive study tasks.`,
+      'success'
+    );
+  };
+
+  // Reset all data & launch fresh onboarding
+  const handleResetAllData = () => {
+    sounds.playPop?.();
+    clearAllStorage();
+    setUserProfile(null);
+    setTasks([]);
+    setExams([]);
+    setActiveExamId(null);
+    setActiveTaskId(null);
+    setIsEditProfileMode(false);
+    setIsOnboardingOpen(true);
+    addToast('Dashboard Reset', 'Cleared study profile. Launching fresh setup wizard.', 'info');
+  };
+
   // Task actions
   const handleToggleTask = (taskId) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
-        const nextCompleted = !t.completed;
-        return { ...t, completed: nextCompleted };
+        return { ...t, completed: !t.completed };
       }
       return t;
     }));
@@ -96,7 +152,7 @@ export default function App() {
   };
 
   const handleCompleteActiveTask = (taskId) => {
-    sounds.playSuccess();
+    sounds.playSuccess?.();
     handleToggleTask(taskId);
     setActiveTaskId(null);
     addToast('Focus Session Finished', 'Active task marked complete!', 'success');
@@ -107,10 +163,25 @@ export default function App() {
   };
 
   const handleResetSampleTasks = () => {
-    sounds.playPop();
+    sounds.playPop?.();
     setTasks(INITIAL_TASKS);
+    if (!userProfile) {
+      setUserProfile({
+        name: 'Alex',
+        studyGoal: 'Computer Science & Placement Prep',
+        subjects: [
+          { id: 'subj-1', name: 'Data Structures & Algorithms', priority: 'Critical' },
+          { id: 'subj-2', name: 'Operating Systems & Concurrency', priority: 'High' }
+        ],
+        onboarded: true
+      });
+    }
+    if (exams.length === 0) {
+      setExams(INITIAL_EXAMS);
+      setActiveExamId(INITIAL_EXAMS[0].id);
+    }
     setActiveTaskId('task-1');
-    addToast('Reset Complete', 'Restored realistic engineering task dataset', 'info');
+    addToast('Sample Data Loaded', 'Restored realistic engineering task dataset', 'info');
   };
 
   // Recovery Engine Handler
@@ -153,13 +224,14 @@ export default function App() {
     addToast('Active Recall Tasks Added', `Converted ${weakTasks.length} weak topics into priority revision tasks!`, 'success');
   };
 
-  const activeExam = exams.find(e => e.id === activeExamId) || exams[0];
+  const activeExam = exams.find(e => e.id === activeExamId) || exams[0] || null;
   const activeFocusTask = tasks.find(t => t.id === activeTaskId) || null;
 
   return (
     <div className="min-h-screen bg-[#121214] text-[#E9D5FF] flex flex-col selection:bg-purple-500/30 selection:text-white">
-      {/* Header */}
+      {/* Dynamic Header */}
       <Header
+        userProfile={userProfile}
         tasks={tasks}
         energyLevel={energyLevel}
         onEnergyChange={(lvl) => setEnergyLevel(lvl)}
@@ -167,21 +239,28 @@ export default function App() {
         onOpenScanner={() => setIsScannerOpen(true)}
         onOpenQuiz={() => setIsQuizOpen(true)}
         onOpenChat={() => setIsChatOpen(true)}
+        onOpenOnboarding={() => {
+          setIsEditProfileMode(true);
+          setIsOnboardingOpen(true);
+        }}
+        onResetData={handleResetAllData}
       />
 
-      {/* Main Content Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-6">
-        {/* Exam Countdown Banner */}
-        <ExamCountdown
-          exams={exams}
-          activeExamId={activeExamId}
-          onSelectExam={(id) => setActiveExamId(id)}
-          onAddExam={(newExam) => {
-            setExams(prev => [newExam, ...prev]);
-            setActiveExamId(newExam.id);
-            addToast('Target Exam Added', `Set countdown for ${newExam.subject}`);
-          }}
-        />
+      {/* Main Content Layout with safe bottom padding for Instagram nav bar */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 md:pb-8">
+        {/* Exam Countdown Banner (Renders if exams configured) */}
+        {exams.length > 0 && (
+          <ExamCountdown
+            exams={exams}
+            activeExamId={activeExamId}
+            onSelectExam={(id) => setActiveExamId(id)}
+            onAddExam={(newExam) => {
+              setExams(prev => [newExam, ...prev]);
+              setActiveExamId(newExam.id);
+              addToast('Target Exam Added', `Set countdown for ${newExam.subject}`);
+            }}
+          />
+        )}
 
         {/* Two-Column Grid: Pomodoro Focus Engine on Left, Multi-Track Task Inbox on Right */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -206,12 +285,12 @@ export default function App() {
                 Exam performance is determined by deep recall retention, not task volume. Protect your top 2 academic blocks first before touching elective routines.
               </p>
               <div className="pt-2 border-t border-[#26262E] flex items-center justify-between text-[11px] text-gray-500">
-                <span>Active Exam In: &lt; 4 Days</span>
+                <span>Active Target: {activeExam?.subject ? activeExam.subject.slice(0, 22) + '...' : 'Configured'}</span>
                 <button
                   onClick={() => setIsRecoveryOpen(true)}
                   className="text-purple-400 hover:text-purple-300 font-medium underline"
                 >
-                  Need Rescheduling?
+                  Reschedule?
                 </button>
               </div>
             </div>
@@ -221,6 +300,7 @@ export default function App() {
           <div id="task-inbox-section" className="lg:col-span-8">
             <TaskInbox
               tasks={tasks}
+              userProfile={userProfile}
               onToggleTask={handleToggleTask}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}
@@ -231,6 +311,15 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {/* Onboarding & Profile Customization Wizard */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onComplete={handleCompleteOnboarding}
+        initialData={{ userProfile, exams, tasks }}
+        isEditMode={isEditProfileMode}
+      />
 
       {/* Modals & Slide-overs */}
       <AdaptiveRecoveryModal
@@ -260,6 +349,7 @@ export default function App() {
         tasks={tasks}
         activeExam={activeExam}
         energyLevel={energyLevel}
+        userName={userProfile?.name || 'Student'}
         onTriggerRecovery={() => setIsRecoveryOpen(true)}
         onFocusTask={(task) => {
           setActiveTaskId(task.id);
@@ -267,14 +357,14 @@ export default function App() {
         }}
       />
 
-      {/* Floating Chat Trigger Button (bottom-right when drawer closed) */}
+      {/* Floating Chat Trigger Button (bottom-right on desktop when drawer closed) */}
       {!isChatOpen && (
         <button
           onClick={() => {
-            sounds.playPop();
+            sounds.playPop?.();
             setIsChatOpen(true);
           }}
-          className="fixed bottom-6 right-6 z-40 p-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-glow-purple border border-purple-400/30 transition-all hover:scale-105 group"
+          className="fixed bottom-6 right-6 z-40 p-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-glow-purple border border-purple-400/30 transition-all hover:scale-105 group hidden md:flex items-center"
           title="Open FocusMate AI Study Mentor"
         >
           <div className="relative">
@@ -288,61 +378,85 @@ export default function App() {
 
       {/* Toast Notification Container */}
       <Toast toasts={toasts} onDismiss={handleDismissToast} />
+
       {/* 📱 INSTAGRAM-STYLE MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#1A1A1E]/95 backdrop-blur-md border-t border-purple-900/30 px-3 py-2 md:hidden shadow-lg shadow-purple-950/50">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#1A1A1E]/95 backdrop-blur-md border-t border-purple-900/30 px-3 py-2 md:hidden shadow-2xl shadow-purple-950/80 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
         <div className="flex items-center justify-around max-w-md mx-auto">
+          {/* 1. Inbox: CheckSquare */}
           <button
             onClick={() => {
               setActiveTab('inbox');
+              sounds.playPop?.();
               const el = document.getElementById('task-inbox-section');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${activeTab === 'inbox' ? 'text-purple-400 font-semibold scale-105' : 'text-gray-400 hover:text-purple-300'
-              }`}
+            className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${
+              activeTab === 'inbox' ? 'text-purple-400 font-semibold scale-105' : 'text-gray-400 hover:text-purple-300'
+            }`}
+            aria-label="Task Inbox"
           >
             <CheckSquare className="w-5 h-5 mb-0.5" />
             <span className="text-[10px] tracking-tight">Inbox</span>
             {activeTab === 'inbox' && <span className="w-1 h-1 bg-purple-400 rounded-full mt-0.5"></span>}
           </button>
 
-          <button
-            onClick={() => setIsRecoveryOpen(true)}
-            className="flex flex-col items-center justify-center -mt-5"
-          >
-            <div className="w-12 h-12 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-[#121214] active:scale-95 transition-transform">
-              <Zap className="w-6 h-6 text-white fill-white" />
-            </div>
-            <span className="text-[10px] text-purple-300 font-medium mt-1">Recover</span>
-          </button>
-
+          {/* 2. Focus: Timer */}
           <button
             onClick={() => {
               setActiveTab('focus');
+              sounds.playPop?.();
               const el = document.getElementById('pomodoro-section');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${activeTab === 'focus' ? 'text-purple-400 font-semibold scale-105' : 'text-gray-400 hover:text-purple-300'
-              }`}
+            className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${
+              activeTab === 'focus' ? 'text-purple-400 font-semibold scale-105' : 'text-gray-400 hover:text-purple-300'
+            }`}
+            aria-label="Focus Timer"
           >
             <Timer className="w-5 h-5 mb-0.5" />
             <span className="text-[10px] tracking-tight">Focus</span>
             {activeTab === 'focus' && <span className="w-1 h-1 bg-purple-400 rounded-full mt-0.5"></span>}
           </button>
 
+          {/* 3. Overwhelmed / Recover: Prominent, elevated central gradient circular button with Zap icon */}
           <button
-            onClick={() => setIsQuizOpen(true)}
-            className="flex flex-col items-center justify-center w-14 py-1 rounded-xl text-gray-400 hover:text-purple-300"
+            onClick={() => {
+              sounds.playPop?.();
+              setIsRecoveryOpen(true);
+            }}
+            className="flex flex-col items-center justify-center -mt-6 group focus:outline-none"
+            aria-label="Adaptive Recovery Plan"
           >
-            <BookOpen className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] tracking-tight">Quiz</span>
+            <div className="w-13 h-13 sm:w-14 sm:h-14 bg-gradient-to-tr from-purple-600 via-indigo-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/50 border-4 border-[#121214] group-active:scale-95 group-hover:scale-105 transition-all duration-200">
+              <Zap className="w-6 h-6 text-white fill-white drop-shadow" />
+            </div>
+            <span className="text-[10px] text-purple-300 font-semibold tracking-wide mt-1">Recover</span>
           </button>
 
+          {/* 4. Quiz: BookOpen */}
           <button
-            onClick={() => setIsChatOpen(true)}
-            className="flex flex-col items-center justify-center w-14 py-1 rounded-xl text-gray-400 hover:text-purple-300"
+            onClick={() => {
+              sounds.playPop?.();
+              setIsQuizOpen(true);
+            }}
+            className="flex flex-col items-center justify-center w-14 py-1 rounded-xl text-gray-400 hover:text-purple-300 active:scale-95 transition-all"
+            aria-label="Syllabus Quiz"
+          >
+            <BookOpen className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] tracking-tight font-medium">Quiz</span>
+          </button>
+
+          {/* 5. Chat AI: MessageSquare */}
+          <button
+            onClick={() => {
+              sounds.playPop?.();
+              setIsChatOpen(true);
+            }}
+            className="flex flex-col items-center justify-center w-14 py-1 rounded-xl text-gray-400 hover:text-purple-300 active:scale-95 transition-all"
+            aria-label="AI Study Mentor"
           >
             <MessageSquare className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] tracking-tight">Chat</span>
+            <span className="text-[10px] tracking-tight font-medium">Chat AI</span>
           </button>
         </div>
       </nav>
