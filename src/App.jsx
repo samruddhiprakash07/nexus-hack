@@ -12,9 +12,11 @@ import Toast from './components/Toast';
 import { INITIAL_TASKS, INITIAL_EXAMS } from './data/initialData';
 import { getStoredItem, setStoredItem } from './utils/storage';
 import { sounds } from './utils/soundEffects';
+import { CheckSquare, Zap, Timer, BookOpen, MessageSquare } from 'lucide-react';
 
 export default function App() {
   // State initialization with LocalStorage persistence
+  const [activeTab, setActiveTab] = useState('inbox');
   const [tasks, setTasks] = useState(() => getStoredItem('focusmate_tasks', INITIAL_TASKS));
   const [exams, setExams] = useState(() => getStoredItem('focusmate_exams', INITIAL_EXAMS));
   const [activeExamId, setActiveExamId] = useState(() => getStoredItem('focusmate_active_exam', 'exam-1'));
@@ -114,7 +116,7 @@ export default function App() {
   // Recovery Engine Handler
   const handleApplyRecoveryPlan = ({ scheduledTasks, deferredTasks, availableHours, energy }) => {
     setEnergyLevel(energy);
-    
+
     // Mark tasks with deferred tag
     const scheduledIds = new Set(scheduledTasks.map(t => t.id));
     const deferredIds = new Set(deferredTasks.map(t => t.id));
@@ -134,7 +136,7 @@ export default function App() {
     }
 
     addToast(
-      'Adaptive Plan Applied ✨', 
+      'Adaptive Plan Applied ✨',
       `Protected ${scheduledTasks.length} exam-critical tasks into ${availableHours}h. Deferred ${deferredTasks.length} non-urgent items without guilt.`
     );
   };
@@ -168,7 +170,7 @@ export default function App() {
       />
 
       {/* Main Content Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-6">
         {/* Exam Countdown Banner */}
         <ExamCountdown
           exams={exams}
@@ -184,7 +186,7 @@ export default function App() {
         {/* Two-Column Grid: Pomodoro Focus Engine on Left, Multi-Track Task Inbox on Right */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Pomodoro Focus Timer & Ambient Generator */}
-          <div className="lg:col-span-4 space-y-6">
+          <div id="pomodoro-section" className="lg:col-span-4 space-y-6">
             <PomodoroTimer
               activeTask={activeFocusTask}
               onCompleteActiveTask={handleCompleteActiveTask}
@@ -216,7 +218,7 @@ export default function App() {
           </div>
 
           {/* Right Column: Multi-Track Tagged Task Inbox */}
-          <div className="lg:col-span-8">
+          <div id="task-inbox-section" className="lg:col-span-8">
             <TaskInbox
               tasks={tasks}
               onToggleTask={handleToggleTask}
@@ -286,6 +288,64 @@ export default function App() {
 
       {/* Toast Notification Container */}
       <Toast toasts={toasts} onDismiss={handleDismissToast} />
+      {/* 📱 INSTAGRAM-STYLE MOBILE BOTTOM NAVIGATION BAR */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#1A1A1E]/95 backdrop-blur-md border-t border-purple-900/30 px-3 py-2 md:hidden shadow-lg shadow-purple-950/50">
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          <button
+            onClick={() => {
+              setActiveTab('inbox');
+              const el = document.getElementById('task-inbox-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${activeTab === 'inbox' ? 'text-purple-400 font-semibold scale-105' : 'text-gray-400 hover:text-purple-300'
+              }`}
+          >
+            <CheckSquare className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] tracking-tight">Inbox</span>
+            {activeTab === 'inbox' && <span className="w-1 h-1 bg-purple-400 rounded-full mt-0.5"></span>}
+          </button>
+
+          <button
+            onClick={() => setIsRecoveryOpen(true)}
+            className="flex flex-col items-center justify-center -mt-5"
+          >
+            <div className="w-12 h-12 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-full flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-[#121214] active:scale-95 transition-transform">
+              <Zap className="w-6 h-6 text-white fill-white" />
+            </div>
+            <span className="text-[10px] text-purple-300 font-medium mt-1">Recover</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('focus');
+              const el = document.getElementById('pomodoro-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${activeTab === 'focus' ? 'text-purple-400 font-semibold scale-105' : 'text-gray-400 hover:text-purple-300'
+              }`}
+          >
+            <Timer className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] tracking-tight">Focus</span>
+            {activeTab === 'focus' && <span className="w-1 h-1 bg-purple-400 rounded-full mt-0.5"></span>}
+          </button>
+
+          <button
+            onClick={() => setIsQuizOpen(true)}
+            className="flex flex-col items-center justify-center w-14 py-1 rounded-xl text-gray-400 hover:text-purple-300"
+          >
+            <BookOpen className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] tracking-tight">Quiz</span>
+          </button>
+
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="flex flex-col items-center justify-center w-14 py-1 rounded-xl text-gray-400 hover:text-purple-300"
+          >
+            <MessageSquare className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] tracking-tight">Chat</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }
